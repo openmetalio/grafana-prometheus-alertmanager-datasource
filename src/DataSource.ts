@@ -104,7 +104,13 @@ export class AlertmanagerDataSource extends DataSourceApi<CustomQuery, GenericOp
       const annotations: string[] = data.map((alert: any) => Object.keys(alert.annotations)).flat();
       const labels: string[] = data.map((alert: any) => Object.keys(alert.labels)).flat();
       const alertstatus: string[] = ['alertstatus', 'alertstatus_code'];
-      const attributes: string[] = [...new Set([...annotations, ...labels, ...alertstatus])];
+      const alertinfo: string[] = [
+        'alertinfo_state',
+        'alertinfo_fingerprint',
+        'alertinfo_generatorURL',
+        'alertinfo_silence',
+      ];
+      const attributes: string[] = [...new Set([...annotations, ...labels, ...alertstatus, ...alertinfo])];
 
       attributes.forEach((attribute: string) => {
         fields.push({
@@ -127,11 +133,14 @@ export class AlertmanagerDataSource extends DataSourceApi<CustomQuery, GenericOp
       case 'critical':
         severityValue = 1;
         break;
-      case 'warning':
+      case 'error':
         severityValue = 2;
         break;
-      case 'info':
+      case 'warning':
         severityValue = 3;
+        break;
+      case 'notice':
+        severityValue = 4;
         break;
       default:
         break;
@@ -139,7 +148,14 @@ export class AlertmanagerDataSource extends DataSourceApi<CustomQuery, GenericOp
 
     const row: string[] = [alert.startsAt, severityValue];
     fields.slice(2).forEach((element: any) => {
-      row.push(alert.annotations[element.name] || alert.labels[element.name] || '');
+      if (element.name === 'alertinfo_silence') {
+        row.push(alert.status.silencedBy[0] || '');
+      } else if (element.name.startsWith('alertinfo_')) {
+        const statevar: string = element.name.replace('alertinfo_', '');
+        row.push(alert.status[statevar] || alert[statevar] || '');
+      } else {
+        row.push(alert.annotations[element.name] || alert.labels[element.name] || '');
+      }
     });
     return row;
   }
